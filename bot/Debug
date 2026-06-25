@@ -1,0 +1,99 @@
+"""
+Запустите этот скрипт на вашем сервере:
+  python debug_apis.py
+
+Он покажет какие API доступны и возвращают ли они данные для UNI.
+"""
+import asyncio
+import aiohttp
+
+
+async def main():
+    ticker = "UNI"
+    print(f"=== Диагностика API для {ticker} ===\n")
+
+    async with aiohttp.ClientSession() as s:
+
+        # 1. CryptoCompare
+        print("1. CryptoCompare — проверка монеты:")
+        try:
+            async with s.get(
+                "https://min-api.cryptocompare.com/data/price",
+                params={"fsym": ticker, "tsyms": "USD,USDT"},
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as r:
+                body = await r.json()
+                print(f"   HTTP {r.status}: {body}")
+        except Exception as e:
+            print(f"   ОШИБКА: {e}")
+
+        print()
+
+        # 2. CryptoCompare exchanges
+        print("2. CryptoCompare — биржи для UNI/USDT:")
+        try:
+            async with s.get(
+                "https://min-api.cryptocompare.com/data/top/exchanges/full",
+                params={"fsym": ticker, "tsym": "USDT", "limit": 10},
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as r:
+                body = await r.json()
+                exs = [e["MARKET"] for e in body.get("Data", {}).get("Exchanges", [])]
+                print(f"   HTTP {r.status}: биржи = {exs}")
+        except Exception as e:
+            print(f"   ОШИБКА: {e}")
+
+        print()
+
+        # 3. Binance
+        print("3. Binance — цена UNIUSDT:")
+        try:
+            async with s.get(
+                "https://api.binance.com/api/v3/ticker/price",
+                params={"symbol": "UNIUSDT"},
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as r:
+                body = await r.json()
+                print(f"   HTTP {r.status}: {body}")
+        except Exception as e:
+            print(f"   ОШИБКА: {e}")
+
+        print()
+
+        # 4. Binance earliest kline
+        print("4. Binance — самая ранняя свеча UNIUSDT:")
+        try:
+            async with s.get(
+                "https://api.binance.com/api/v3/klines",
+                params={"symbol": "UNIUSDT", "interval": "1d", "limit": 1, "startTime": 0},
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as r:
+                body = await r.json()
+                if body:
+                    from datetime import datetime, timezone
+                    ts = body[0][0]
+                    dt = datetime.fromtimestamp(ts/1000, tz=timezone.utc)
+                    print(f"   HTTP {r.status}: первая свеча = {dt.strftime('%Y-%m-%d')}")
+                else:
+                    print(f"   HTTP {r.status}: пустой ответ")
+        except Exception as e:
+            print(f"   ОШИБКА: {e}")
+
+        print()
+
+        # 5. CoinGecko
+        print("5. CoinGecko — пинг:")
+        try:
+            async with s.get(
+                "https://api.coingecko.com/api/v3/ping",
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as r:
+                body = await r.json()
+                print(f"   HTTP {r.status}: {body}")
+        except Exception as e:
+            print(f"   ОШИБКА: {e}")
+
+    print("\n=== Готово. Пришлите результат. ===")
+
+
+asyncio.run(main())
